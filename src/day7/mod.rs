@@ -4,6 +4,8 @@ use crate::solver::Solver;
 
 const HAND_LENGTH: usize = 5;
 
+// Note: the default ordering assumes the enum variants are in
+// ascending order.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
 enum Card {
     #[default]
@@ -45,6 +47,8 @@ impl Card {
     }
 }
 
+// Note: the default ordering assumes the enum variants are in
+// ascending order.
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 enum HandType {
     FiveOfAKind,
@@ -117,6 +121,8 @@ impl Hand {
                 num_prev_same = 1;
             }
 
+            // We know that the joker cards are sorted to the end,
+            // so once we find one we can stop there.
             if prev_card == Card::JackAsJoker {
                 num_jokers = HAND_LENGTH - i;
                 break;
@@ -124,6 +130,8 @@ impl Hand {
         }
 
         for _ in 0..num_jokers {
+            // If there is at least one joker, then the remainder of the cards
+            // cannot result in a five of a kind.
             if has_quint {
                 unreachable!();
             } else if has_quad {
@@ -187,6 +195,7 @@ impl Day7Solver {
             .lines()
             .map(|line| Hand::parse_new(line, jack_as_joker))
             .collect();
+        // Sort in descending order, as rank 1 is the worst hand.
         hands.sort_by(|a, b| b.cmp(a));
 
         let total_winnings: u32 = hands
