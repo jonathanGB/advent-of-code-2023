@@ -7,6 +7,7 @@ use clap::Parser;
 mod args;
 mod day1;
 mod day10;
+mod day11;
 mod day2;
 mod day3;
 mod day4;
@@ -20,6 +21,7 @@ mod solver;
 use args::{Args, Day};
 use day1::Day1Solver;
 use day10::Day10Solver;
+use day11::Day11Solver;
 use day2::Day2Solver;
 use day3::Day3Solver;
 use day4::Day4Solver;
@@ -44,5 +46,6 @@ fn main() {
         Day::Day8 { part } => Day8Solver::solve(part),
         Day::Day9 { part } => Day9Solver::solve(part),
         Day::Day10 { part } => Day10Solver::solve(part),
+        Day::Day11 { part } => Day11Solver::solve(part),
     }
 }
