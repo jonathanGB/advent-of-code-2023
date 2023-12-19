@@ -177,13 +177,6 @@ impl Platform {
 
         total_load
     }
-
-    fn print(&self) {
-        for row in &self.platform {
-            println!("{}", row.iter().map(char::from).collect::<String>());
-        }
-        println!();
-    }
 }
 
 pub struct Day14Solver {}
