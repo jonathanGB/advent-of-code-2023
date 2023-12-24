@@ -1,5 +1,5 @@
 use smallvec::SmallVec;
-use std::{collections::HashSet, str::Lines};
+use std::str::Lines;
 
 use crate::solver::Solver;
 
@@ -35,6 +35,17 @@ enum Direction {
     Left,
 }
 
+impl Direction {
+    fn opposite(&self) -> Direction {
+        match self {
+            Self::Up => Self::Bottom,
+            Self::Right => Self::Left,
+            Self::Bottom => Self::Up,
+            Self::Left => Self::Right,
+        }
+    }
+}
+
 #[derive(Copy, Clone, Debug, PartialEq)]
 struct Position {
     row: usize,
@@ -53,7 +64,7 @@ macro_rules! pos {
 #[derive(Debug)]
 struct Cell {
     cell_type: CellType,
-    energized: HashSet<Direction>,
+    energized: SmallVec<[Direction; std::mem::variant_count::<Direction>()]>,
 }
 
 impl From<char> for Cell {
@@ -61,184 +72,62 @@ impl From<char> for Cell {
         let cell_type = value.into();
         Self {
             cell_type,
-            energized: HashSet::new(),
+            energized: SmallVec::new(),
         }
     }
 }
 
 impl Cell {
     fn interact(&self, in_light_beam: LightBeam) -> SmallVec<[LightBeam; 2]> {
-        match self.cell_type {
-            CellType::EmptySpace => Self::interact_empty_space(in_light_beam),
-            CellType::LeftMirror => Self::interact_left_mirror(in_light_beam),
-            CellType::RightMirror => Self::interact_right_mirror(in_light_beam),
-            CellType::HorizontalSplitter => Self::interact_horizontal_splitter(in_light_beam),
-            CellType::VerticalSplitter => Self::interact_vertical_splitter(in_light_beam),
-        }
-    }
-
-    fn interact_empty_space(in_light_beam: LightBeam) -> SmallVec<[LightBeam; 2]> {
-        let Position { row, col } = in_light_beam.position;
         let in_direction = in_light_beam.direction;
+        let (first_out_direction, second_out_direction) = match self.cell_type {
+            CellType::EmptySpace => (in_direction, None),
+            CellType::LeftMirror => (Self::interact_left_mirror(in_direction), None),
+            CellType::RightMirror => (Self::interact_left_mirror(in_direction).opposite(), None),
+            CellType::HorizontalSplitter => Self::interact_horizontal_splitter(in_direction),
+            CellType::VerticalSplitter => Self::interact_vertical_splitter(in_direction),
+        };
+
+        let mut out_light_beams = SmallVec::new();
+        if let Some(out_light_beam) =
+            LightBeam::try_out(in_light_beam.position, first_out_direction)
+        {
+            out_light_beams.push(out_light_beam);
+        }
+
+        if second_out_direction.is_none() {
+            return out_light_beams;
+        }
+
+        if let Some(out_light_beam) =
+            LightBeam::try_out(in_light_beam.position, second_out_direction.unwrap())
+        {
+            out_light_beams.push(out_light_beam);
+        }
+
+        out_light_beams
+    }
+
+    fn interact_left_mirror(in_direction: Direction) -> Direction {
         match in_direction {
-            Direction::Up => {
-                if let Some(new_row) = row.checked_sub(1) {
-                    Some(pos!(new_row, col))
-                } else {
-                    None
-                }
-            }
-            Direction::Right => {
-                if col + 1 < GRID_SIZE {
-                    Some(pos!(row, col + 1))
-                } else {
-                    None
-                }
-            }
-            Direction::Bottom => {
-                if row + 1 < GRID_SIZE {
-                    Some(pos!(row + 1, col))
-                } else {
-                    None
-                }
-            }
-            Direction::Left => {
-                if let Some(new_col) = col.checked_sub(1) {
-                    Some(pos!(row, new_col))
-                } else {
-                    None
-                }
-            }
+            Direction::Up => Direction::Left,
+            Direction::Right => Direction::Bottom,
+            Direction::Bottom => Direction::Right,
+            Direction::Left => Direction::Up,
         }
-        .into_iter()
-        .map(|new_position| LightBeam {
-            position: new_position,
-            direction: in_direction,
-        })
-        .collect()
     }
 
-    fn interact_left_mirror(in_light_beam: LightBeam) -> SmallVec<[LightBeam; 2]> {
-        let Position { row, col } = in_light_beam.position;
-        let in_direction = in_light_beam.direction;
-        let mut out_light_beam = SmallVec::new();
-
+    fn interact_horizontal_splitter(in_direction: Direction) -> (Direction, Option<Direction>) {
         match in_direction {
-            Direction::Up => {
-                if let Some(new_col) = col.checked_sub(1) {
-                    let new_direction = Direction::Left;
-
-                    out_light_beam.push(LightBeam {
-                        position: pos!(row, new_col),
-                        direction: new_direction,
-                    });
-                }
-            }
-            Direction::Right => {
-                if row + 1 < GRID_SIZE {
-                    let new_direction = Direction::Bottom;
-
-                    out_light_beam.push(LightBeam {
-                        position: pos!(row + 1, col),
-                        direction: new_direction,
-                    });
-                }
-            }
-            Direction::Bottom => {
-                if col + 1 < GRID_SIZE {
-                    let new_direction = Direction::Right;
-
-                    out_light_beam.push(LightBeam {
-                        position: pos!(row, col + 1),
-                        direction: new_direction,
-                    });
-                }
-            }
-            Direction::Left => {
-                if let Some(new_row) = row.checked_sub(1) {
-                    let new_direction = Direction::Up;
-
-                    out_light_beam.push(LightBeam {
-                        position: pos!(new_row, col),
-                        direction: new_direction,
-                    });
-                }
-            }
+            Direction::Left | Direction::Right => (in_direction, None),
+            Direction::Up | Direction::Bottom => (Direction::Left, Some(Direction::Right)),
         }
-
-        out_light_beam
     }
 
-    fn interact_right_mirror(in_light_beam: LightBeam) -> SmallVec<[LightBeam; 2]> {
-        let Position { row, col } = in_light_beam.position;
-        let in_direction = in_light_beam.direction;
-        let mut out_light_beam = SmallVec::new();
-
+    fn interact_vertical_splitter(in_direction: Direction) -> (Direction, Option<Direction>) {
         match in_direction {
-            Direction::Up => {
-                if col + 1 < GRID_SIZE {
-                    let new_direction = Direction::Right;
-
-                    out_light_beam.push(LightBeam {
-                        position: pos!(row, col + 1),
-                        direction: new_direction,
-                    });
-                }
-            }
-            Direction::Right => {
-                if let Some(new_row) = row.checked_sub(1) {
-                    let new_direction = Direction::Up;
-
-                    out_light_beam.push(LightBeam {
-                        position: pos!(new_row, col),
-                        direction: new_direction,
-                    });
-                }
-            }
-            Direction::Bottom => {
-                if let Some(new_col) = col.checked_sub(1) {
-                    let new_direction = Direction::Left;
-
-                    out_light_beam.push(LightBeam {
-                        position: pos!(row, new_col),
-                        direction: new_direction,
-                    });
-                }
-            }
-            Direction::Left => {
-                if row + 1 < GRID_SIZE {
-                    let new_direction = Direction::Bottom;
-
-                    out_light_beam.push(LightBeam {
-                        position: pos!(row + 1, col),
-                        direction: new_direction,
-                    });
-                }
-            }
-        }
-
-        out_light_beam
-    }
-
-    fn interact_horizontal_splitter(in_light_beam: LightBeam) -> SmallVec<[LightBeam; 2]> {
-        match in_light_beam.direction {
-            Direction::Left | Direction::Right => Self::interact_empty_space(in_light_beam),
-            Direction::Up | Direction::Bottom => {
-                let mut split: SmallVec<[LightBeam; 2]> = Self::interact_left_mirror(in_light_beam);
-                split.extend(Self::interact_right_mirror(in_light_beam));
-                split
-            }
-        }
-    }
-
-    fn interact_vertical_splitter(in_light_beam: LightBeam) -> SmallVec<[LightBeam; 2]> {
-        match in_light_beam.direction {
-            Direction::Up | Direction::Bottom => Self::interact_empty_space(in_light_beam),
-            Direction::Left | Direction::Right => {
-                let mut split: SmallVec<[LightBeam; 2]> = Self::interact_left_mirror(in_light_beam);
-                split.extend(Self::interact_right_mirror(in_light_beam));
-                split
-            }
+            Direction::Up | Direction::Bottom => (in_direction, None),
+            Direction::Left | Direction::Right => (Direction::Up, Some(Direction::Bottom)),
         }
     }
 }
@@ -247,6 +136,58 @@ impl Cell {
 struct LightBeam {
     position: Position,
     direction: Direction,
+}
+
+impl LightBeam {
+    fn try_out(in_position: Position, out_direction: Direction) -> Option<Self> {
+        let Position {
+            row: in_row,
+            col: in_col,
+        } = in_position;
+
+        match out_direction {
+            Direction::Up => {
+                if in_row == 0 {
+                    None
+                } else {
+                    Some(Self {
+                        position: pos!(in_row - 1, in_col),
+                        direction: out_direction,
+                    })
+                }
+            }
+            Direction::Right => {
+                if in_col == GRID_SIZE - 1 {
+                    None
+                } else {
+                    Some(Self {
+                        position: pos!(in_row, in_col + 1),
+                        direction: out_direction,
+                    })
+                }
+            }
+            Direction::Bottom => {
+                if in_row == GRID_SIZE - 1 {
+                    None
+                } else {
+                    Some(Self {
+                        position: pos!(in_row + 1, in_col),
+                        direction: out_direction,
+                    })
+                }
+            }
+            Direction::Left => {
+                if in_col == 0 {
+                    None
+                } else {
+                    Some(Self {
+                        position: pos!(in_row, in_col - 1),
+                        direction: out_direction,
+                    })
+                }
+            }
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -279,7 +220,7 @@ impl Grid {
                 num_cells_energized += 1;
             }
 
-            cell.energized.insert(in_light_beam.direction);
+            cell.energized.push(in_light_beam.direction);
             light_beams.extend(cell.interact(in_light_beam));
         }
 
@@ -293,27 +234,6 @@ impl Grid {
             }
         }
     }
-
-    // fn light_beam_rec(&mut self, in_light_beam: LightBeam) -> usize {
-    //     let cell = self.get_cell_mut(in_light_beam.position);
-
-    //     if cell.energized.contains(&in_light_beam.direction) {
-    //         return 0;
-    //     }
-
-    //     let mut num_cells_energized = 0;
-    //     if cell.energized.is_empty() {
-    //         num_cells_energized += 1;
-    //     }
-
-    //     cell.energized.push(in_light_beam.direction);
-
-    //     for out_light_beam in cell.interact(in_light_beam) {
-    //         num_cells_energized += self.light_beam_rec(out_light_beam);
-    //     }
-
-    //     num_cells_energized
-    // }
 }
 
 pub struct Day16Solver {}

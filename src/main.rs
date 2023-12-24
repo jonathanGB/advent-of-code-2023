@@ -1,4 +1,5 @@
 #![feature(test)]
+#![feature(variant_count)]
 #[macro_use]
 extern crate lazy_static;
 extern crate test;
