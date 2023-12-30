@@ -16,6 +16,7 @@ mod day14;
 mod day15;
 mod day16;
 mod day17;
+mod day18;
 mod day2;
 mod day3;
 mod day4;
@@ -36,6 +37,7 @@ use day14::Day14Solver;
 use day15::Day15Solver;
 use day16::Day16Solver;
 use day17::Day17Solver;
+use day18::Day18Solver;
 use day2::Day2Solver;
 use day3::Day3Solver;
 use day4::Day4Solver;
@@ -67,5 +69,6 @@ fn main() {
         Day::Day15 { part } => Day15Solver::solve(part),
         Day::Day16 { part } => Day16Solver::solve(part),
         Day::Day17 { part } => Day17Solver::solve(part),
+        Day::Day18 { part } => Day18Solver::solve(part),
     }
 }
