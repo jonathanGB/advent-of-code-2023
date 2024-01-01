@@ -114,6 +114,11 @@ pub enum Day {
         #[command(subcommand)]
         part: Part,
     },
+    /// Solve day 22's problem.
+    Day22 {
+        #[command(subcommand)]
+        part: Part,
+    },
 }
 
 #[derive(Subcommand, Debug)]
